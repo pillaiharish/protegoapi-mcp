@@ -1,65 +1,45 @@
-# Protego MCP Protocol v0.1
+# Protego MCP Protocol v0.2
 
-## Envelope
-(id, ts, auth, method, tool, params, ctx)
+This branch introduces a **minimal Go backend** to prove the API round-trip works.
 
-## Error codes
-1000 InvalidJSON
-1001 UnkknownTool
-1002 Unauthorized
-...
+## What’s here
+- `GET /api/health` → health check
+- `POST /api/grade` → stub grader that fails if payload contains `SELECT * FROM`
 
-# Transport
-- HTTP POST /mcp
-- Websocket sub-protocol: mcpv1
+> No database, no LLM, no frontend yet—just a tiny, testable API.
 
-# Run and Test
-``` bash
-harish $ go run ./cmd/server
-harish $ curl -X POST localhost:8991/mcp -d '{"id":1,"tool":"echo","params":{"msg":"namaste"}}'
-{"error":null,"id":1,"result":{"msg":"namaste"}}
+---
 
-``` 
+## Prerequisites
+- Go 1.23+
 
-# Test with Token
-``` bash
-harish $ TOKEN=$(go run ./cmd/jwtgen)
-
-harish $ curl -v   -H "Authorization: Bearer $TOKEN"   -H "Content-Type: application/json"   -X POST "http://localhost:8991/mcp"   -d '{"id":1,"tool":"echo","params":{"msg":"namaste"}}'
-Note: Unnecessary use of -X or --request, POST is already inferred.
-* Host localhost:8991 was resolved.
-* IPv6: ::1
-* IPv4: 127.0.0.1
-*   Trying [::1]:8991...
-* Connected to localhost (::1) port 8991
-> POST /mcp HTTP/1.1
-> Host: localhost:8991
-> User-Agent: curl/8.7.1
-> Accept: */*
-> Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-> Content-Type: application/json
-> Content-Length: 49
->
-* upload completely sent off: 49 bytes
-< HTTP/1.1 200 OK
-< Date: Wed, 18 Jun 2025 19:32:33 GMT
-< Content-Length: 49
-< Content-Type: text/plain; charset=utf-8
-<
-{"error":null,"id":1,"result":{"msg":"namaste"}}
-* Connection #0 to host localhost left intact
+## Run the server
+```bash
+cd server
+go mod tidy
+go run ./...
+Server starts on: http://localhost:8080
 ```
 
-# Test without Token
-``` bash
-harish $ curl -X POST localhost:8991/mcp -d '{"id":1,"tool":"echo","params":{"msg":"namaste"}}'
-missing token
+---
 
+## Test the endpoints
+### Health
+```bash
+harish $ curl http://localhost:8080/api/health
+ok
 ```
 
-# Test with Invalid Token
-``` bash
-harish $ curl -H "Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NTAyNzQ1MzAsInJvbGVzIjpbImFkbWluIl0sInN1YiI6ImhhcmlzaCJ9.0ggk9J2Ck5Fe8CAH_iyLmWPGP3yzAqqx7yiqn3T2EGs" -X POST http://localhost:8991/mcp -d '{"id":1,"tool":"echo","params":{"msg":"namaste"}}'
-invalid token 
+---
+### Grade(stub)
+- Fails when code contains 'SELECT * FROM'
+```bash
+harish $ curl -X POST http://localhost:8080/api/grade -d '{"code":"SELECT * FROM"}'
+{"pass":false,"findings":[{"rule":"SQLI-1","detail":"Found raw 'SELECT * FROM' — avoid unsafe patterns. Use explicit columns and parameters.","severity":"high","passed":false}]}
 ```
 
+- Passes with other code 
+```bash
+harish $ curl -X POST http://localhost:8080/api/grade -d '{"code":"print(\"hello\")"}'
+{"pass":true,"findings":[]}
+```
